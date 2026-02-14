@@ -17,29 +17,27 @@ class WalletService {
     final String? queueData = prefs.getString(_queueKey);
     List<dynamic> queue = queueData != null ? jsonDecode(queueData) : [];
 
-    // Trigger proses antrean tapi gak usah ditunggu (background)
+    // 1. Trigger sync di background kalau ada antrean
     if (queue.isNotEmpty && !_isProcessing) {
       _processQueue();
     }
 
     try {
+      // 2. Coba ambil data terbaru dari Supabase
       final response = await _supabase
           .from('wallets')
           .select()
           .order('name', ascending: true)
           .timeout(const Duration(seconds: 4));
 
-      // HANYA timpa lokal kalau antrean beneran KOSONG
-      // Cek ulang queue di sini
-      if (queue.isEmpty) {
-        await prefs.setString(_cacheKey, jsonEncode(response));
-        return response.map((data) => Wallet.fromMap(data)).toList();
-      }
+      await prefs.setString(_cacheKey, jsonEncode(response));
+      return response.map((data) => Wallet.fromMap(data)).toList();
+
     } catch (e) {
-      // Offline / Timeout fallback
+      print("DEBUG: [Wallet] Ambil data dari cache lokal (Offline/Timeout).");
     }
 
-    // Balikin data lokal (Kebenaran Utama saat sync/offline)
+    // 3. Fallback ke data lokal (The Source of Truth)
     final String? localData = prefs.getString(_cacheKey);
     if (localData != null) {
       final List<dynamic> decoded = jsonDecode(localData);

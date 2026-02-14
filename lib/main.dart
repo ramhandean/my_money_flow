@@ -154,6 +154,15 @@ class _DashboardTabState extends State<DashboardTab> {
   @override
   void initState() {
     super.initState();
+
+    _totalBalanceFuture = Future.value(0.0);
+    _todayExpenseFuture = Future.value(0.0);
+    _todayIncomeFuture = Future.value(0.0);
+    _monthExpenseFuture = Future.value(0.0);
+    _walletsFuture = Future.value([]);
+    _recentTransactionsFuture = Future.value([]);
+    _activeDebtsFuture = Future.value([]);
+
     _refreshAllData();
     _setupConnectivityListener();
     _setupSyncQueueListener();
@@ -212,65 +221,58 @@ class _DashboardTabState extends State<DashboardTab> {
     });
   }
 
-  void _refreshAllData() async {
-    // Prevent multiple simultaneous refreshes
-    if (_isRefreshing) {
-      print("🔄 [Dashboard] Refresh already in progress, skipping...");
-      return;
-    }
+  // GANTI VOID JADI FUTURE<VOID>
+  Future<void> _refreshAllData() async {
+    if (_isRefreshing) return;
     _isRefreshing = true;
 
     try {
-      // Compute semua dari sumber yang SAMA untuk konsistensi
-      // Ambil wallets dan pending SEKALI saja
-      final walletsData = await Future.wait([
+      // 1. KASIH JEDA DIKIT (Opsi)
+      // Supaya SharedPreferences kelar nulis data baru dari addWallet
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // 2. AMBIL DATA (Satu sumber kebenaran)
+      final results = await Future.wait([
         _walletService.getWallets(),
         _transactionService.getPendingAmountByWallet(),
+        _transactionService.getTodayExpense(),
+        _transactionService.getTodayIncome(),
+        _transactionService.getTotalMonthExpense(),
+        _transactionService.getRecentTransactions(),
+        DebtService().getActiveDebts(),
       ]);
-      
-      final List<Wallet> baseWallets = walletsData[0] as List<Wallet>;
-      final Map<String, double> pendingMap = walletsData[1] as Map<String, double>;
-      
-      // DEBUG: Print saldo calculation
-      print("\n=== DEBUG SALDO CALCULATION ===");
-      double totalDebug = 0;
-      for (var w in baseWallets) {
-        final pending = pendingMap[w.id] ?? 0.0;
-        final finalBalance = w.balance + pending;
-        totalDebug += finalBalance;
-        print("[${w.name}] Base: ${w.balance}, Pending: $pending, Final: $finalBalance");
-      }
-      print("Total Saldo: $totalDebug");
-      print("==============================\n");
-      
-      // Modifikasi wallets dengan pending
+
+      final List<Wallet> baseWallets = results[0] as List<Wallet>;
+      final Map<String, double> pendingMap = results[1] as Map<String, double>;
+
+      // 3. KALKULASI SALDO + PENDING (Untuk Dashboard)
       final List<Wallet> walletsWithPending = baseWallets.map((w) {
         double pending = pendingMap[w.id] ?? 0.0;
         return w.copyWith(balance: w.balance + pending);
       }).toList();
-      
-      // Hitung total saldo dari wallets yang sudah include pending
+
       final double totalBalance = walletsWithPending.fold<double>(
-        0.0, 
-        (sum, item) => sum + item.balance
+          0.0, (sum, item) => sum + item.balance
       );
 
-      // Set semua futures dengan data yang KONSISTEN
-      _totalBalanceFuture = Future.value(totalBalance);
-      _walletsFuture = Future.value(walletsWithPending);
-      
-      // Transaksi dan hutang tetap independent (tidak mempengaruhi saldo)
-      _todayExpenseFuture = _transactionService.getTodayExpense();
-      _todayIncomeFuture = _transactionService.getTodayIncome();
-      _monthExpenseFuture = _transactionService.getTotalMonthExpense();
-      _recentTransactionsFuture = _transactionService.getRecentTransactions();
-      _activeDebtsFuture = DebtService().getActiveDebts();
+      // 4. UPDATE FUTURES (Semua serentak)
+      if (mounted) {
+        setState(() {
+          _totalBalanceFuture = Future.value(totalBalance);
+          _walletsFuture = Future.value(walletsWithPending);
+          _todayExpenseFuture = Future.value(results[2] as double);
+          _todayIncomeFuture = Future.value(results[3] as double);
+          _monthExpenseFuture = Future.value(results[4] as double);
+          _recentTransactionsFuture = Future.value(results[5] as List<Transaction>);
+          _activeDebtsFuture = Future.value(results[6] as List<Debt>);
+        });
+      }
 
-      // 2. Delay visual biar shimmer-nya kerasa halus
-      await Future.delayed(const Duration(milliseconds: 300));
+      // Delay visual kecil buat transisi Shimmer
+      await Future.delayed(const Duration(milliseconds: 200));
 
-      // 3. Trigger build ulang
-      if (mounted) setState(() {});
+    } catch (e) {
+      print("⚠️ [Dashboard] Error Refresh: $e");
     } finally {
       _isRefreshing = false;
     }
@@ -1184,19 +1186,22 @@ class _DashboardTabState extends State<DashboardTab> {
                 ),
                 onPressed: () async {
                   if (nameController.text.isNotEmpty) {
+                    // A. Simpan data
                     await _walletService.addWallet(
                         nameController.text,
                         double.tryParse(balanceController.text) ?? 0,
                         'cash'
                     );
+
                     if (context.mounted) {
-                      Navigator.pop(context);
-                      _refreshAllData();
+                      Navigator.pop(context); // Tutup modal dulu
+
+                      // B. AWAIT REFRESH (Nunggu sampe Future.wait di atas kelar)
+                      await _refreshAllData();
+
+                      // C. NOTIFIKASI
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Kantong berhasil dibuat!"),
-                          backgroundColor: primaryColor,
-                        ),
+                          const SnackBar(content: Text("Kantong berhasil dibuat!"))
                       );
                     }
                   }
