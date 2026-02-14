@@ -353,11 +353,16 @@ class _DashboardTabState extends State<DashboardTab> {
                 future: _totalBalanceFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) return _buildShimmerText(200, 32);
-                  
+
                   final saldo = snapshot.data ?? 0;
                   final isNegative = saldo < 0;
-                  final displayColor = isNegative ? Colors.redAccent : Colors.black87;
-                  
+
+                  // --- PERBAIKAN DI SINI ---
+                  // Kalau negatif tetep merah, kalau nggak, ikutin warna tema sistem
+                  final displayColor = isNegative
+                      ? Colors.redAccent
+                      : Theme.of(context).colorScheme.onSurface;
+
                   return Row(
                     children: [
                       if (isNegative)
@@ -372,7 +377,7 @@ class _DashboardTabState extends State<DashboardTab> {
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
                             letterSpacing: -1,
-                            color: displayColor,
+                            color: displayColor, // Sudah otomatis adaptif
                           ),
                         ),
                       ),
@@ -805,9 +810,15 @@ class _DashboardTabState extends State<DashboardTab> {
         }
 
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Text("Belum ada kantong.", style: TextStyle(color: Colors.grey)),
+          return const SizedBox(
+            width: double.infinity,
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                  "Belum ada kantong.",
+                  style: TextStyle(color: Colors.grey, fontSize: 13)
+              ),
+            ),
           );
         }
 
@@ -901,9 +912,15 @@ class _DashboardTabState extends State<DashboardTab> {
           return Column(children: List.generate(3, (i) => _buildLoadingCard()));
         }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Center(child: Text("Belum ada transaksi.", style: TextStyle(color: Colors.grey))),
+          return const SizedBox(
+            width: double.infinity,
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                  "Belum ada transaksi.",
+                  style: TextStyle(color: Colors.grey, fontSize: 13)
+              ),
+            ),
           );
         }
 
@@ -979,9 +996,15 @@ class _DashboardTabState extends State<DashboardTab> {
         if (snapshot.hasError) return const Text("Gagal muat data.");
 
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Text("Semua hutang lunas! 🎉", style: TextStyle(color: Colors.grey)),
+          return const SizedBox(
+            width: double.infinity,
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                  "Semua hutang lunas! 🎉",
+                  style: TextStyle(color: Colors.grey, fontSize: 13)
+              ),
+            ),
           );
         }
 
