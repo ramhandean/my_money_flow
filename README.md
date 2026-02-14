@@ -53,4 +53,4 @@ Aplikasi menggunakan sistem antrean sinkron (Synchronized Queue) untuk menjaga i
 4.  **Verification**: Antrean hanya dihapus dari storage HP jika Supabase mengembalikan respon sukses. Jika terjadi kegagalan koneksi, antrean tetap tersimpan untuk dicoba kembali nanti.
 
 ---
-Dibuat dengan ❤️ oleh **Dean Ramhan** untuk menemani perjalanan mudik ke Sukabumi! 🚗💨
+Maintained by **Dean Ramhan** | © 2026 MyMoneyFlow Project
