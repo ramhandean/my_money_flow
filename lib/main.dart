@@ -94,11 +94,16 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   late List<Widget> _pages;
 
+  final GlobalKey<_DashboardTabState> _dashboardKey = GlobalKey<_DashboardTabState>();
+
   @override
   void initState() {
     super.initState();
     _pages = [
-      DashboardTab(onSeeAll: () => setState(() => _currentIndex = 1)),
+      DashboardTab(
+          key: _dashboardKey,
+          onSeeAll: () => setState(() => _currentIndex = 1)
+      ),
       const HistoryPage(),
       const StatsPage(),
       const ProfilePage(),
@@ -111,7 +116,17 @@ class _HomeScreenState extends State<HomeScreen> {
       body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (index) => setState(() => _currentIndex = index),
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+
+          // TAMBAHKAN LOGIC INI:
+          // Kalau user ngetap ikon Home (index 0), paksa Dashboard buat refresh data
+          if (index == 0) {
+            _dashboardKey.currentState?._refreshAllData();
+          }
+        },
         destinations: const [
           NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.history), selectedIcon: Icon(Icons.history_toggle_off), label: 'Riwayat'),
@@ -802,7 +817,6 @@ class _DashboardTabState extends State<DashboardTab> {
 
   Widget _buildWalletList() {
     return FutureBuilder<List<Wallet>>(
-      // _walletsFuture sudah include pending amount, jadi langsung pakai aja
       future: _walletsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -828,73 +842,68 @@ class _DashboardTabState extends State<DashboardTab> {
           children: wallets.map((wallet) {
             final isCash = wallet.type == 'cash';
 
-            // Saldo sudah include pending dari _refreshAllData(), jadi langsung pakai
-            return Container(
-              margin: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardTheme.color,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  )
-                ],
-              ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                leading: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4DB6AC).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    isCash ? Icons.payments_rounded : Icons.account_balance_wallet_rounded,
-                    color: const Color(0xFF4DB6AC),
-                    size: 24,
-                  ),
+            return Dismissible(
+              key: Key(wallet.id),
+              direction: DismissDirection.endToStart,
+              // Konfirmasi sebelum hapus biar nggak sengaja kegeser
+              confirmDismiss: (direction) async {
+                _showDeleteWalletDialog(wallet);
+                return false; // Kita return false karena hapus benerannya di dalam dialog
+              },
+              background: Container(
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 20),
+                margin: const EdgeInsets.only(top: 12),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                title: Text(wallet.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                subtitle: Text(isCash ? "Uang Tunai" : "Saldo Digital", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      CurrencyFormat.convertToIdr(wallet.balance, 0),
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: wallet.balance < 0 ? Colors.redAccent : const Color(0xFF4DB6AC),
-                      ),
-                    ),
-                    PopupMenuButton(
-                      icon: const Icon(Icons.more_vert, size: 20, color: Colors.grey),
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          child: const Row(
-                            children: [
-                              Icon(Icons.edit, size: 18, color: Colors.blueAccent),
-                              SizedBox(width: 12),
-                              Text('Edit'),
-                            ],
-                          ),
-                          onTap: () => _showEditWalletDialog(wallet),
-                        ),
-                        PopupMenuItem(
-                          child: const Row(
-                            children: [
-                              Icon(Icons.delete, size: 18, color: Colors.redAccent),
-                              SizedBox(width: 12),
-                              Text('Hapus'),
-                            ],
-                          ),
-                          onTap: () => _showDeleteWalletDialog(wallet),
-                        ),
-                      ],
-                    ),
+                child: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+              ),
+              child: Container(
+                margin: const EdgeInsets.only(top: 12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardTheme.color,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    )
                   ],
+                ),
+                child: ListTile(
+                  onLongPress: () {
+                    HapticFeedback.mediumImpact();
+                    _showEditWalletDialog(wallet);
+                  },
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  leading: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4DB6AC).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      isCash ? Icons.payments_rounded : Icons.account_balance_wallet_rounded,
+                      color: const Color(0xFF4DB6AC),
+                      size: 24,
+                    ),
+                  ),
+                  title: Text(wallet.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  subtitle: Text(
+                      "Tahan untuk edit • ${isCash ? "Tunai" : "Digital"}",
+                      style: const TextStyle(fontSize: 11, color: Colors.grey)
+                  ),
+                  trailing: Text(
+                    CurrencyFormat.convertToIdr(wallet.balance, 0),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: wallet.balance < 0 ? Colors.redAccent : const Color(0xFF4DB6AC),
+                    ),
+                  ),
                 ),
               ),
             );
@@ -932,14 +941,33 @@ class _DashboardTabState extends State<DashboardTab> {
             final Color statusColor = isExpense ? Colors.redAccent : const Color(0xFF4DB6AC);
             final IconData statusIcon = isExpense ? Icons.south_west_rounded : Icons.north_east_rounded;
 
+            // ... di dalam map transaksi ...
             return Dismissible(
               key: Key(tx.id!),
               direction: DismissDirection.endToStart,
+              // TAMBAHKAN INI
+              confirmDismiss: (direction) async {
+                return await showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text("Hapus Transaksi?"),
+                    content: Text("Yakin mau hapus '${tx.description}'?"),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("BATAL")),
+                      TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text("HAPUS", style: TextStyle(color: Colors.redAccent))
+                      ),
+                    ],
+                  ),
+                );
+              },
               onDismissed: (_) async {
                 HapticFeedback.mediumImpact();
                 await _transactionService.deleteTransaction(tx);
                 _refreshAllData();
               },
+              // ... rest of code
               background: Container(
                 alignment: Alignment.centerRight,
                 padding: const EdgeInsets.only(right: 20),
@@ -1012,30 +1040,36 @@ class _DashboardTabState extends State<DashboardTab> {
           children: snapshot.data!.take(3).map((d) {
             final Color statusColor = d.isDebt ? Colors.orangeAccent : Colors.blueAccent;
 
+            // ... di dalam map hutang ...
             return Dismissible(
-              key: Key(d.id), // ID hutang harus unik
+              key: Key(d.id),
               direction: DismissDirection.endToStart,
+              // TAMBAHKAN INI
+              confirmDismiss: (direction) async {
+                return await showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text("Konfirmasi Lunas"),
+                    content: Text("Yakin ${d.personName} sudah lunas?"),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("BELUM")),
+                      TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text("YA, LUNAS!", style: TextStyle(color: Color(0xFF4DB6AC)))
+                      ),
+                    ],
+                  ),
+                );
+              },
               onDismissed: (_) async {
                 HapticFeedback.mediumImpact();
-
-                // LOGIKA LUNAS: Panggil service settleDebt
                 await DebtService().settleDebt(
                   d.id,
                   isDebt: d.isDebt,
-                  walletId: null, // Masuk ke kantong default
+                  walletId: null,
                   amount: d.remainingAmount,
                 );
-
-                // Refresh UI Dashboard
                 _refreshAllData();
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("${d.personName} Berhasil Dilunasi!"),
-                    backgroundColor: statusColor,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
               },
               background: Container(
                 alignment: Alignment.centerRight,

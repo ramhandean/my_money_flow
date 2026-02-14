@@ -175,38 +175,56 @@ class _HistoryPageState extends State<HistoryPage> {
                       return Dismissible(
                         key: Key(uniqueKey),
                         direction: DismissDirection.endToStart,
-                        // --- FIX DISINI ---
+                        // --- TAMBAH KONFIRMASI DISINI ---
+                        confirmDismiss: (direction) async {
+                          return await showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                              title: Text(item is Transaction ? "Hapus Transaksi?" : "Konfirmasi Lunas"),
+                              content: Text(
+                                  item is Transaction
+                                      ? "Yakin mau hapus riwayat '${item.description}'?"
+                                      : "Yakin ${item.personName} sudah lunas?"
+                              ),
+                              actions: [
+                                TextButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: const Text("BATAL")
+                                ),
+                                TextButton(
+                                    onPressed: () => Navigator.pop(context, true),
+                                    child: Text(
+                                        item is Transaction ? "HAPUS" : "YA, LUNAS!",
+                                        style: TextStyle(color: item is Transaction ? Colors.redAccent : const Color(0xFF4DB6AC))
+                                    )
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                         onDismissed: (direction) async {
-                          // 1. Simpan salinan item buat di-delete di service
                           final itemToDelete = item;
-
-                          // 2. Kasih feedback getar
                           HapticFeedback.mediumImpact();
 
-                          // 3. Eksekusi hapus di Service (DB/Cache)
                           if (itemToDelete is Transaction) {
                             await _txService.deleteTransaction(itemToDelete);
                           } else if (itemToDelete is Debt) {
                             await _debtService.settleDebt(
-                              itemToDelete.id,           // ID hutangnya
+                              itemToDelete.id,
                               isDebt: itemToDelete.isDebt,
-                              walletId: null,            // Null kalau mau potong kantong default
+                              walletId: null,
                               amount: itemToDelete.remainingAmount,
                             );
                           }
 
-                          // 4. Update UI secara instan
-                          setState(() {
-                            // Kita panggil setState kosong aja udah cukup buat
-                            // nge-trigger FutureBuilder ngebaca ulang data yang udah dihapus tadi.
-                          });
+                          _handleRefresh(); // Panggil fungsi refresh lu yang udah ada
 
-                          // 5. Snack bar buat feedback
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text("${itemToDelete is Transaction ? 'Transaksi' : 'Catatan'} berhasil dihapus"),
-                                backgroundColor: Colors.redAccent,
+                                content: Text("${itemToDelete is Transaction ? 'Transaksi' : 'Catatan'} berhasil diperbarui"),
+                                backgroundColor: itemToDelete is Transaction ? Colors.redAccent : const Color(0xFF4DB6AC),
                                 behavior: SnackBarBehavior.floating,
                               ),
                             );
@@ -217,16 +235,10 @@ class _HistoryPageState extends State<HistoryPage> {
                           padding: const EdgeInsets.only(right: 20),
                           margin: const EdgeInsets.only(bottom: 8),
                           decoration: BoxDecoration(
-                            color: Colors.redAccent.withOpacity(0.2), // Gue cerahin dikit biar jelas
+                            color: Colors.redAccent.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          child: const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.delete_sweep_outlined, color: Colors.redAccent),
-                              Text("Hapus", style: TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
+                          child: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
                         ),
                         child: item is Transaction
                             ? _buildTransactionCard(item)
