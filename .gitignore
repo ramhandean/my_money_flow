@@ -63,3 +63,6 @@ DerivedData/
 # Symbolication & Obfuscation
 app.*.symbols
 app.*.map.json
+
+# Privacy-sensitive files
+password db My Money Flow.txt
