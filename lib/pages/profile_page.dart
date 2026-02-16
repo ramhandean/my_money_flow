@@ -121,12 +121,20 @@ class ProfilePage extends StatelessWidget {
   void _showAboutDialog(BuildContext context) {
     showAboutDialog(
       context: context,
-      applicationName: "MyMoneyFlow",
+      applicationName: "My Money Flow",
       applicationVersion: "v1.1.0",
-      applicationIcon: const CircleAvatar(
-        backgroundColor: Color(0xFF4DB6AC),
-        child: Icon(Icons.auto_graph, color: Colors.black),
+
+      // --- GANTI BAGIAN INI ---
+      applicationIcon: const SizedBox(
+        width: 50, // Ukuran kita kunci biar gak kegedean
+        height: 50,
+        child: Image(
+          image: AssetImage('assets/images/icon.png'),
+          fit: BoxFit.contain, // Biar gambarnya proporsional
+        ),
       ),
+      // ------------------------
+
       children: [
         const Text("Aplikasi pengelola keuangan pribadi untuk memantau saldo, transaksi, dan hutang secara real-time."),
         const SizedBox(height: 12),

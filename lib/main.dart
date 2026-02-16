@@ -521,6 +521,32 @@ class _DashboardTabState extends State<DashboardTab> {
               if (res == true) _refreshAllData();
             },
           ),
+
+          const Divider(indent: 70, endIndent: 20),
+
+          // --- BARU: OPSI PINDAH SALDO ---
+          ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Colors.orangeAccent.withOpacity(0.1),
+              child: const Icon(Icons.compare_arrows_rounded, color: Colors.orangeAccent),
+            ),
+            title: const Text("Pindah Saldo", style: TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: const Text("Transfer uang antar kantong"),
+            onTap: () async {
+              Navigator.pop(context);
+              // Pastikan kita punya data wallet sebelum buka dialog
+              final wallets = await _walletService.getWallets();
+              if (mounted) {
+                if (wallets.length < 2) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Butuh minimal 2 kantong buat transfer!"))
+                  );
+                } else {
+                  _showTransferDialog(wallets);
+                }
+              }
+            },
+          ),
           const SizedBox(height: 24),
         ],
       ),
@@ -1275,73 +1301,6 @@ class _DashboardTabState extends State<DashboardTab> {
     );
   }
 
-  void _showAddDebtDialog() {
-    final nameController = TextEditingController();
-    final amountController = TextEditingController();
-    bool isDebt = true;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 24, left: 24, right: 24, top: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2)))),
-              const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(16)),
-                child: Row(children: [
-                  Expanded(child: GestureDetector(
-                      onTap: () => setModalState(() => isDebt = true),
-                      child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: isDebt ? Colors.redAccent.withOpacity(0.2) : Colors.transparent, borderRadius: BorderRadius.circular(12)),
-                          child: Center(child: Text("HUTANG SAYA", style: TextStyle(color: isDebt ? Colors.redAccent : Colors.grey, fontWeight: FontWeight.bold)))
-                      ))),
-                  Expanded(child: GestureDetector(
-                      onTap: () => setModalState(() => isDebt = false),
-                      child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: !isDebt ? Colors.blueAccent.withOpacity(0.2) : Colors.transparent, borderRadius: BorderRadius.circular(12)),
-                          child: Center(child: Text("PIUTANG", style: TextStyle(color: !isDebt ? Colors.blueAccent : Colors.grey, fontWeight: FontWeight.bold)))
-                      ))),
-                ]),
-              ),
-              const SizedBox(height: 24),
-              TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Nama Orang/Instansi', prefixIcon: Icon(Icons.person_outline))),
-              const SizedBox(height: 16),
-              TextField(controller: amountController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Nominal (Rp)', prefixIcon: Icon(Icons.money))),
-              const SizedBox(height: 32),
-              SizedBox(width: double.infinity, height: 56, child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isDebt ? Colors.redAccent : Colors.blueAccent,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () async {
-                    if (nameController.text.isNotEmpty && amountController.text.isNotEmpty) {
-                      await DebtService().addDebt(personName: nameController.text, amount: double.parse(amountController.text), isDebt: isDebt, walletId: null);
-                      if (mounted) {
-                        Navigator.pop(context);
-                        _refreshAllData();
-                      }
-                    }
-                  },
-                  child: Text(isDebt ? "SIMPAN HUTANG" : "SIMPAN PIUTANG", style: const TextStyle(fontWeight: FontWeight.bold))
-              )),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _showSettleConfirmation(Debt debt) {
     // Tentukan warna tema dialog berdasarkan jenis hutang/piutang
     final Color themeColor = debt.isDebt ? Colors.redAccent : const Color(0xFF4DB6AC);
@@ -1580,5 +1539,215 @@ class _DashboardTabState extends State<DashboardTab> {
         ],
       ),
     );
+  }
+
+  void _showTransferDialog(List<Wallet> wallets) {
+    // Default value
+    Wallet? sourceWallet = wallets.isNotEmpty ? wallets[0] : null;
+    Wallet? destWallet = (wallets.length > 1 && wallets[1].id != sourceWallet?.id)
+        ? wallets[1]
+        : null;
+
+    final amountController = TextEditingController();
+
+    // --- VARIABEL BUAT NAMPUNG ERROR ---
+    String? errorMessage;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Padding(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              left: 24, right: 24, top: 12
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2)))),
+              const SizedBox(height: 24),
+              const Text("Pindah Saldo", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+
+              // DARI KANTONG
+              DropdownButtonFormField<Wallet>(
+                value: sourceWallet,
+                decoration: InputDecoration(
+                  labelText: "Dari Kantong",
+                  prefixIcon: const Icon(Icons.outbound_rounded, color: Colors.redAccent),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                items: wallets.map((w) => DropdownMenuItem(
+                  value: w,
+                  child: Text("${w.name} (${CurrencyFormat.convertToIdr(w.balance, 0)})", style: const TextStyle(fontSize: 13, overflow: TextOverflow.ellipsis)),
+                )).toList(),
+                onChanged: (val) {
+                  setModalState(() {
+                    sourceWallet = val;
+                    if (destWallet?.id == val?.id) destWallet = null;
+                    errorMessage = null; // Reset error pas ganti
+                  });
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // KE KANTONG
+              DropdownButtonFormField<Wallet>(
+                value: destWallet,
+                decoration: InputDecoration(
+                  labelText: "Ke Kantong",
+                  prefixIcon: const Icon(Icons.move_to_inbox_rounded, color: Colors.green),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                items: wallets.where((w) => w.id != sourceWallet?.id).map((w) => DropdownMenuItem(
+                  value: w,
+                  child: Text("${w.name} (${CurrencyFormat.convertToIdr(w.balance, 0)})", style: const TextStyle(fontSize: 13, overflow: TextOverflow.ellipsis)),
+                )).toList(),
+                onChanged: (val) => setModalState(() {
+                  destWallet = val;
+                  errorMessage = null; // Reset error pas ganti
+                }),
+              ),
+
+              const SizedBox(height: 16),
+
+              // NOMINAL
+              TextField(
+                controller: amountController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Nominal Transfer (Rp)',
+                  prefixIcon: const Icon(Icons.money, color: Colors.orangeAccent),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                onChanged: (_) => setModalState(() => errorMessage = null), // Reset error pas ngetik
+              ),
+
+              const SizedBox(height: 24),
+
+              // --- TAMPILAN ERROR DI SINI (BIAR GAK KETUTUP) ---
+              if (errorMessage != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.redAccent, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          errorMessage!,
+                          style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // TOMBOL
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orangeAccent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: () async {
+                    final amount = double.tryParse(amountController.text) ?? 0;
+
+                    // --- VALIDASI PAKE LOGIC ERROR MESSAGE ---
+                    if (sourceWallet == null || destWallet == null) {
+                      setModalState(() => errorMessage = "Pilih kantong asal dan tujuan dulu!");
+                      return;
+                    }
+                    if (sourceWallet!.id == destWallet!.id) {
+                      setModalState(() => errorMessage = "Kantong asal dan tujuan gak boleh sama!");
+                      return;
+                    }
+                    if (amount <= 0) {
+                      setModalState(() => errorMessage = "Nominal harus lebih dari 0!");
+                      return;
+                    }
+                    if (amount > sourceWallet!.balance) {
+                      setModalState(() => errorMessage = "Saldo kantong asal gak cukup!");
+                      return;
+                    }
+
+                    // EKSEKUSI (Kalo lolos semua validasi)
+                    Navigator.pop(context); // Tutup dialog
+                    await _handleTransferProcess(sourceWallet!, destWallet!, amount);
+                  },
+                  child: const Text("TRANSFER SEKARANG", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Taruh ini di dalam class _DashboardTabState (paling bawah)
+
+  Future<void> _handleTransferProcess(Wallet source, Wallet dest, double amount) async {
+    // Tampilkan loading indicator overlay
+    showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator())
+    );
+
+    try {
+      await _transactionService.addTransaction(
+        walletId: source.id,
+        amount: -amount, // Negatif = Keluar
+        description: "Transfer ke ${dest.name}",
+        category: "Transfer",
+      );
+      await _transactionService.addTransaction(
+        walletId: dest.id,
+        amount: amount, // Positif = Masuk
+        description: "Transfer dari ${source.name}",
+        category: "Transfer",
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+
+        await _refreshAllData();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text("Sukses transfer Rp ${CurrencyFormat.convertToIdr(amount, 0)} ke ${dest.name}!")),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+            )
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Gagal transfer: $e"), backgroundColor: Colors.redAccent)
+        );
+      }
+    }
   }
 }
