@@ -23,7 +23,7 @@ Aplikasi pengelola keuangan pribadi (Personal Finance Management) yang dibangun 
 
 1.  **Clone Repository**
     ```bash
-    git clone [https://github.com/username/my_money_flow.git](https://github.com/username/my_money_flow.git)
+    git clone https://github.com/ramhandean/my_money_flow.git
     cd my_money_flow
     ```
 
